@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:crypto_tracker/core/error/app_exceptions.dart';
 import 'package:http/http.dart' as http;
 import '../model/crypto_model.dart';
-import 'crypto_datasource.dart';
+import 'crypto_remote_datasource.dart';
 
 class CryptoRemoteDataSourceImpl implements CryptoRemoteDataSource {
   final http.Client client;
