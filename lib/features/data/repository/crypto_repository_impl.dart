@@ -18,28 +18,35 @@ class CryptoRepositoryImpl implements CryptoRepository {
   });
 
   @override
+  @override
   Future<Either<Failure, List<Crypto>>> getCoins(int page) async {
-    if (await networkInfo.isConnected()) {
-      try {
+    try {
+      final cacheValid = await localDatasource.isCachedValid();
+
+      if (cacheValid) {
+        final cachedCoins = await localDatasource.getCachedCoins();
+        return Right(cachedCoins);
+      }
+
+      final isConnected = await networkInfo.isConnected();
+
+      if (isConnected) {
         final remoteCoins = await remoteDataSource(page);
+
         await localDatasource.cacheCoins(remoteCoins);
 
         return Right(remoteCoins);
-      } catch (e) {
-        return Left(ServerFailure("Erro ao buscar dados remotos"));
       }
-    } else {
-      try {
-        final localCoins = await localDatasource.getCachedCoins();
 
-        if (localCoins.isEmpty) {
-          return Left(NetworkFailure('Erro de conexão'));
-        }
+      final cachedCoins = await localDatasource.getCachedCoins();
 
-        return Right(localCoins);
-      } catch (e) {
-        return Left(NetworkFailure('Erro ao acessar dados remotos e local'));
+      if (cachedCoins.isNotEmpty) {
+        return Right(cachedCoins);
       }
+
+      return Left(NetworkFailure('Sem internet e sem cache válido'));
+    } catch (e) {
+      return Left(ServerFailure('Erro inesperado'));
     }
   }
 }
