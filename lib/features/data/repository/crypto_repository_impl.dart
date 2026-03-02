@@ -11,6 +11,8 @@ class CryptoRepositoryImpl implements CryptoRepository {
   final CryptoLocalDatasource localDatasource;
   final NetworkInfo networkInfo;
 
+  bool _isRevalidating = false;
+
   CryptoRepositoryImpl({
     required this.remoteDataSource,
     required this.localDatasource,
@@ -18,35 +20,61 @@ class CryptoRepositoryImpl implements CryptoRepository {
   });
 
   @override
-  @override
   Future<Either<Failure, List<Crypto>>> getCoins(int page) async {
     try {
-      final cacheValid = await localDatasource.isCachedValid();
-
-      if (cacheValid) {
-        final cachedCoins = await localDatasource.getCachedCoins();
-        return Right(cachedCoins);
-      }
-
-      final isConnected = await networkInfo.isConnected();
-
-      if (isConnected) {
-        final remoteCoins = await remoteDataSource(page);
-
-        await localDatasource.cacheCoins(remoteCoins);
-
-        return Right(remoteCoins);
-      }
-
       final cachedCoins = await localDatasource.getCachedCoins();
 
-      if (cachedCoins.isNotEmpty) {
+      /// SEM CACHE
+      if (cachedCoins.isEmpty) {
+        return _fetchFromRemote(page);
+      }
+
+      final cacheValid = await localDatasource.isCachedValid();
+
+      /// CACHE OK
+      if (cacheValid) {
         return Right(cachedCoins);
       }
 
-      return Left(NetworkFailure('Sem internet e sem cache válido'));
-    } catch (e) {
+      /// SWR
+      _revalidateCoins(page);
+
+      return Right(cachedCoins);
+    } catch (_) {
       return Left(ServerFailure('Erro inesperado'));
     }
+  }
+
+  Future<Either<Failure, List<Crypto>>> _fetchFromRemote(int page) async {
+    final isConnected = await networkInfo.isConnected();
+
+    if (!isConnected) {
+      return Left(NetworkFailure('Sem internet'));
+    }
+
+    final remoteCoins = await remoteDataSource(page);
+    await localDatasource.cacheCoins(remoteCoins);
+
+    return Right(remoteCoins);
+  }
+
+  Future<void> _revalidateCoins(int page) async {
+    if (_isRevalidating) return;
+
+    _isRevalidating = true;
+
+    final isConnected = await networkInfo.isConnected();
+
+    if (!isConnected) {
+      _isRevalidating = false;
+      return;
+    }
+
+    try {
+      final remoteCoins = await remoteDataSource(page);
+      await localDatasource.cacheCoins(remoteCoins);
+    } catch (_) {}
+
+    _isRevalidating = false;
   }
 }
