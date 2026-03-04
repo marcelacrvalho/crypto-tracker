@@ -1,3 +1,4 @@
+import 'package:crypto_tracker/core/network/request_deduplicator.dart';
 import 'package:dio/dio.dart';
 import 'app_interceptor.dart';
 import 'logger_interceptor.dart';
@@ -14,6 +15,7 @@ Dio createDio() {
 
   dio.interceptors.addAll([
     LoggerInterceptor(),
+    RequestDeduplicator(),
     RetryInterceptor(dio: dio),
     AppInterceptor(),
   ]);
